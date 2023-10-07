@@ -1,0 +1,53 @@
+i don't know the post request used to enroll a student. but i know what i want to block.
+https://www.eotckessatetheology.edu.et/courses/course-eotc-1/lesson/introduction-lesson-1/
+each block  follows this url scheme.
+https://domain-name/courses/course-title/lesson/lesssons.
+
+so what i want to do is to intercept when a user tries to access the url https://domain-name/courses/course-title/lesson/* and check if they have the permission. if they have the permission i will let them access the page. if they don't have i will forward them to another page. called request access.
+
+
+// Hook into the 'template_redirect' action. This hook is triggered before WordPress determines which template page to load.
+add_action('template_redirect', 'intercept_lesson_request');
+
+function intercept_lesson_request() {
+    // Parse the current URL
+    $url_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+
+    // Check if the URL matches the pattern for a lesson page
+    if (preg_match('#^/courses/.+/lesson/.+$#', $url_path)) {
+        // Get the current user ID
+        $user_id = get_current_user_id();
+
+        // Extract the course title from the URL. This assumes that the course title is always the second part of the path.
+        $path_parts = explode('/', trim($url_path, '/'));
+        $course_title = $path_parts[1];
+
+        // Check if the user is allowed to access the course. This function will contain your custom access control logic.
+        if (!user_can_access_course($user_id, $course_title)) {
+            // If the user does not have access, redirect them to the access request page
+            wp_redirect('/request-access');
+            exit;
+        }
+    }
+}
+
+function user_can_access_course($user_id, $course_title) {
+    global $wpdb;
+
+    // Convert the course title to a course ID. This will depend on how your courses are stored in the database.
+    $course_id = get_course_id_from_title($course_title);
+
+    // Define your table name
+    $table_name = $wpdb->prefix.'access_control';
+
+    // Query your custom table to check if this user has access to this course
+    $canAccess = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT canAccess FROM $table_name WHERE userid = %d AND courseid = %d",
+            array($user_id, $course_id)
+        )
+    );
+
+    // Return true if they have access (canAccess == 1), false otherwise
+    return $canAccess == 1;
+}
